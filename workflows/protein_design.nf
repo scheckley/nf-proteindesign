@@ -78,9 +78,6 @@ workflow PROTEIN_DESIGN {
         //           since the target sequence is identical across all designs for a sample
         // ====================================================================
         if (params.run_protenix_refold) {
-            // Prepare extraction script as a channel
-            ch_extract_script = Channel.fromPath("${projectDir}/assets/extract_target_sequence.py", checkIfExists: true)
-            
             // Extract target sequences from the FIRST budget design only
             // The target is the same across all designs, so we only need to extract it once
             ch_boltzgen_structures = BOLTZGEN_RUN.out.budget_design_cifs
@@ -91,7 +88,7 @@ workflow PROTEIN_DESIGN {
                     [meta, first_cif]
                 }
             
-            EXTRACT_TARGET_SEQUENCES(ch_boltzgen_structures, ch_extract_script)
+            EXTRACT_TARGET_SEQUENCES(ch_boltzgen_structures)
             
             // Parallelize Protenix per FASTA file (one per ProteinMPNN sequence)
             // Each ProteinMPNN run generates multiple FASTA files (mpnn_num_seq_per_target)

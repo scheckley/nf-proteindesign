@@ -6,7 +6,6 @@ process EXTRACT_TARGET_SEQUENCES {
 
     input:
     tuple val(meta), path(original_structures)
-    path extract_script
 
     output:
     tuple val(meta), path("${meta.id}_target_sequences.txt"), emit: target_sequences
@@ -20,9 +19,8 @@ process EXTRACT_TARGET_SEQUENCES {
     import sys
     import json
     from pathlib import Path
-    
-    # Import the extraction script
-    sys.path.insert(0, '.')
+    from Bio import PDB
+    from Bio.PDB import PDBIO, MMCIFParser, PDBParser
     
     # Find structure files
     structures_input = Path("${original_structures}")
@@ -34,70 +32,84 @@ process EXTRACT_TARGET_SEQUENCES {
     else:
         structure_files = [Path(f) for f in "${original_structures}".split() if Path(f).exists()]
     
-    print(f"Found {len(structure_files)} structure files")
+    print("Found " + str(len(structure_files)) + " structure files")
     
     if len(structure_files) == 0:
         print("ERROR: No structure files found", file=sys.stderr)
         sys.exit(1)
     
     # Use the first structure file to extract target sequence
-    # (all structures from same design should have same target)
     first_structure = structure_files[0]
-    print(f"Extracting target sequence from: {first_structure}")
+    print("Extracting target sequence from: " + str(first_structure))
     
-    # Run extraction script
-    import subprocess
-    result = subprocess.run(
-        [
-            'python3',
-            '${extract_script}',
-            str(first_structure),
-            '--output', '${meta.id}_target_sequences.txt',
-            '--format', 'plain'
-        ],
-        capture_output=True,
-        text=True
-    )
-    
-    if result.returncode != 0:
-        print(f"ERROR: Failed to extract target sequence", file=sys.stderr)
-        print(result.stderr, file=sys.stderr)
+    # Parse structure using BioPython
+    try:
+        if first_structure.suffix.lower() == '.cif':
+            parser = MMCIFParser(QUIET=True)
+        else:
+            parser = PDBParser(QUIET=True)
+        
+        structure = parser.get_structure('structure', str(first_structure))
+        
+        # Extract sequences from all chains
+        sequences = {}
+        for model in structure:
+            for chain in model:
+                chain_id = chain.id
+                residues = []
+                for residue in chain:
+                    if PDB.is_aa(residue):
+                        # Get 3-letter code and convert to 1-letter
+                        resname = residue.get_resname()
+                        try:
+                            one_letter = PDB.Polypeptide.three_to_one(resname)
+                            residues.append(one_letter)
+                        except KeyError:
+                            residues.append('X')
+                
+                if residues:
+                    sequences[chain_id] = ''.join(residues)
+        
+        if not sequences:
+            print("ERROR: No amino acid sequences found in structure", file=sys.stderr)
+            sys.exit(1)
+        
+        # Identify target chain (longest chain)
+        target_chain_id = max(sequences.items(), key=lambda x: len(x[1]))[0]
+        target_sequence = sequences[target_chain_id]
+        
+        # Write target sequence to file
+        with open("${meta.id}_target_sequences.txt", 'w') as f:
+            f.write(target_sequence + "\\n")
+        
+        print("Target chain " + target_chain_id + " extracted (" + str(len(target_sequence)) + " residues)")
+        
+        # Create info JSON
+        info = {
+            "design_id": "${meta.id}",
+            "source_structure": str(first_structure.name),
+            "target_chain": target_chain_id,
+            "target_length": len(target_sequence),
+            "num_structures": len(structure_files),
+            "all_chains": {cid: len(seq) for cid, seq in sequences.items()}
+        }
+        
+        with open("${meta.id}_target_info.json", 'w') as f:
+            json.dump(info, f, indent=2)
+        
+        print("Target info saved to ${meta.id}_target_info.json")
+        
+    except Exception as e:
+        print("ERROR: Failed to extract sequence: " + str(e), file=sys.stderr)
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
-    
-    # Parse extraction info from stderr
-    target_length = 0
-    chain_id = 'unknown'
-    for line in result.stderr.split('\\n'):
-        if 'Extracted target chain' in line:
-            parts = line.split()
-            if len(parts) >= 4:
-                chain_id = parts[3]
-            if '(' in line and 'residues' in line:
-                try:
-                    target_length = int(line.split('(')[1].split()[0])
-                except:
-                    pass
-    
-    print(f"✓ Target sequence extracted: chain {chain_id}, length {target_length}")
-    
-    # Create info JSON
-    info = {
-        "design_id": "${meta.id}",
-        "source_structure": str(first_structure.name),
-        "target_chain": chain_id,
-        "target_length": target_length,
-        "num_structures": len(structure_files)
-    }
-    
-    with open("${meta.id}_target_info.json", 'w') as f:
-        json.dump(info, f, indent=2)
-    
-    print(f"✓ Target info saved to ${meta.id}_target_info.json")
     
     # Generate version information
     with open("versions.yml", "w") as f:
         f.write("\\"${task.process}\\":\\n")
-        f.write(f"    python: {sys.version.split()[0]}\\n")
+        f.write("    python: " + sys.version.split()[0] + "\\n")
+        f.write("    biopython: " + PDB.__version__ + "\\n")
     """
 
     stub:
