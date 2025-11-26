@@ -21,7 +21,7 @@ process BOLTZ2_REFOLD {
     publishDir "${params.outdir}/${meta.parent_id}/boltz2", mode: params.publish_dir_mode
 
     // Build Boltz-2 container using Wave with conda
-    conda "boltz::boltz=1.0.0"
+    container 'boltz2:latest'
     
     // GPU acceleration - Boltz-2 benefits from GPU for efficient prediction
     accelerator 1, type: 'nvidia-gpu'
@@ -44,6 +44,13 @@ process BOLTZ2_REFOLD {
     """
     #!/bin/bash
     set -euo pipefail
+    
+    # Fix for Numba caching error in containers
+    export NUMBA_CACHE_DIR="\${PWD}/numba_cache"
+    mkdir -p "\${NUMBA_CACHE_DIR}"
+    
+    # Fix for Boltz caching error (tries to write to /.boltz)
+    export HOME="\${PWD}"
     
     echo "============================================"
     echo "Boltz-2 Multimer Structure Prediction"
@@ -72,7 +79,7 @@ process BOLTZ2_REFOLD {
     echo ""
     echo "Processing ProteinMPNN sequences..."
     
-    python3 <<'PARSE_FASTA'
+    python3 <<PARSE_FASTA
 import sys
 import yaml
 import os
@@ -81,7 +88,7 @@ import os
 fasta_input = "${mpnn_sequences}"
 fasta_files = fasta_input.split() if " " in fasta_input else [fasta_input]
 
-target_seq = "\${TARGET_SEQ}"
+target_seq = "\$TARGET_SEQ"
 output_base = "${meta.id}"
 parent_id = "${meta.parent_id}"
 
