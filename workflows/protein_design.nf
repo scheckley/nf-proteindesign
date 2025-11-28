@@ -28,8 +28,14 @@ workflow PROTEIN_DESIGN {
     // Run Boltzgen on design YAMLs
     // ========================================================================
     
+    // Prepare Boltzgen input by removing target_msa (not needed for Boltzgen)
+    ch_boltzgen_input = ch_input
+        .map { meta, design_yaml, structure_files, target_msa ->
+            [meta, design_yaml, structure_files]
+        }
+    
     // Run Boltzgen for each design in parallel
-    BOLTZGEN_RUN(ch_input, ch_cache)
+    BOLTZGEN_RUN(ch_boltzgen_input, ch_cache)
     
     // ========================================================================
     // ProteinMPNN: Optimize sequences for designed structures
