@@ -17,10 +17,11 @@ include { FOLDSEEK_SEARCH } from '../modules/local/foldseek_search'
 include { CONSOLIDATE_METRICS } from '../modules/local/consolidate_metrics'
 
 workflow PROTEIN_DESIGN {
-    
+
     take:
-    ch_input    // channel: [meta, design_yaml, structure_files, target_msa]
-    ch_cache    // channel: path to cache directory or EMPTY_CACHE placeholder
+    ch_input         // channel: [meta, design_yaml, structure_files, target_msa]
+    ch_cache         // channel: path to cache directory or EMPTY_CACHE placeholder
+    ch_boltz2_cache  // channel: path to Boltz-2 cache directory or EMPTY_BOLTZ2_CACHE placeholder
 
     main:
     
@@ -161,7 +162,7 @@ workflow PROTEIN_DESIGN {
             // Run Boltz-2 structure prediction with target MSA
             // NOTE: Boltz-2 will automatically add missing MSA info to binder
             // NOTE: Boltz-2 outputs NPZ files natively - no conversion needed!
-            BOLTZ2_REFOLD(ch_boltz2_input)
+            BOLTZ2_REFOLD(ch_boltz2_input, ch_boltz2_cache)
         }
     } else {
         // Use Boltzgen outputs directly if ProteinMPNN is disabled

@@ -37,31 +37,38 @@ process CONVERT_CIF_TO_PDB {
     pdb_writer = PDBIO()
     
     # Get all structure files
-    # Handle both file and directory inputs
-    structures_input = Path("${structures}")
-    
-    if structures_input.is_dir():
-        # If input is a directory, search recursively for CIF and PDB files
-        # This handles nested directories like final_1_designs, intermediate_ranked_10_designs, etc.
-        structure_files = list(structures_input.rglob("*.cif")) + list(structures_input.rglob("*.pdb"))
-        print("Found directory: " + str(structures_input))
-        print("  Files found (recursive search): " + str(len(structure_files)))
-        
-        # Show which subdirectories contain files
-        subdirs_with_files = set()
-        for f in structure_files:
-            subdir = f.parent.name
-            subdirs_with_files.add(subdir)
-        if subdirs_with_files:
-            print("  Subdirectories with structures: " + ", ".join(sorted(subdirs_with_files)))
-    elif structures_input.is_file():
-        # If input is a single file
-        structure_files = [structures_input]
-        print("Found single file: " + str(structures_input))
+    # Handle multiple files (space-separated), single file, or directory inputs
+    structures_str = "${structures}"
+    structure_files = []
+
+    # First, check if this is a space-separated list of multiple files
+    potential_files = structures_str.split()
+    if len(potential_files) > 1:
+        # Multiple files passed as space-separated list
+        structure_files = [Path(f) for f in potential_files if Path(f).exists()]
+        print("Parsed file list: " + str(len(structure_files)) + " files from " + str(len(potential_files)) + " entries")
     else:
-        # Try to parse as space-separated list of files
-        structure_files = [Path(f) for f in "${structures}".split() if Path(f).exists()]
-        print("Parsed file list: " + str(len(structure_files)) + " files")
+        # Single path - could be a file or directory
+        structures_input = Path(structures_str)
+
+        if structures_input.is_dir():
+            # If input is a directory, search recursively for CIF and PDB files
+            # This handles nested directories like final_1_designs, intermediate_ranked_10_designs, etc.
+            structure_files = list(structures_input.rglob("*.cif")) + list(structures_input.rglob("*.pdb"))
+            print("Found directory: " + str(structures_input))
+            print("  Files found (recursive search): " + str(len(structure_files)))
+
+            # Show which subdirectories contain files
+            subdirs_with_files = set()
+            for f in structure_files:
+                subdir = f.parent.name
+                subdirs_with_files.add(subdir)
+            if subdirs_with_files:
+                print("  Subdirectories with structures: " + ", ".join(sorted(subdirs_with_files)))
+        elif structures_input.is_file():
+            # If input is a single file
+            structure_files = [structures_input]
+            print("Found single file: " + str(structures_input))
     
     converted_count = 0
     copied_count = 0

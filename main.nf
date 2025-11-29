@@ -179,7 +179,7 @@ workflow NFPROTEINDESIGN {
     // ========================================================================
     // Prepare cache directory channel for Boltzgen
     // ========================================================================
-    
+
     // If cache_dir is specified, stage it as input; otherwise use empty placeholder
     if (params.cache_dir) {
         ch_cache = Channel
@@ -189,12 +189,26 @@ workflow NFPROTEINDESIGN {
         // Create a placeholder file when no cache is provided
         ch_cache = Channel.value(file('EMPTY_CACHE'))
     }
-    
+
+    // ========================================================================
+    // Prepare cache directory channel for Boltz-2
+    // ========================================================================
+
+    // If boltz2_cache is specified, stage it as input; otherwise use empty placeholder
+    if (params.boltz2_cache) {
+        ch_boltz2_cache = Channel
+            .fromPath(params.boltz2_cache, type: 'dir', checkIfExists: true)
+            .first()
+    } else {
+        // Create a placeholder file when no cache is provided
+        ch_boltz2_cache = Channel.value(file('EMPTY_BOLTZ2_CACHE'))
+    }
+
     // ========================================================================
     // Run PROTEIN_DESIGN workflow
     // ========================================================================
-    
-    PROTEIN_DESIGN(ch_input, ch_cache)
+
+    PROTEIN_DESIGN(ch_input, ch_cache, ch_boltz2_cache)
 
 }
 

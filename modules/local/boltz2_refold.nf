@@ -28,6 +28,7 @@ process BOLTZ2_REFOLD {
 
     input:
     tuple val(meta), path(mpnn_sequences), path(target_sequence_file), path(target_msa)
+    path cache_dir
 
     output:
     tuple val(meta), path("${meta.id}_boltz2_output"), emit: predictions
@@ -39,6 +40,7 @@ process BOLTZ2_REFOLD {
 
     script:
     def use_msa = params.boltz2_use_msa ? '--use_msa_server' : ''
+    def cache_opt = cache_dir.name != 'EMPTY_BOLTZ2_CACHE' ? "--cache boltz2_cache" : ''
     def num_recycling = params.boltz2_num_recycling ?: 3
     def num_diffusion = params.boltz2_num_diffusion ?: 200
     def has_target_msa = target_msa.name != 'NO_MSA'
@@ -46,8 +48,7 @@ process BOLTZ2_REFOLD {
     #!/bin/bash
     set -euo pipefail
 
-    echo "TORCH_FLOAT32_MATMUL_PRECISION=\$TORCH_FLOAT32_MATMUL_PRECISION"
-    env | grep TORCH
+    echo "Torch float32 matmul precision: ${params.boltz2_torch_precision ?: 'medium'}"
 
     # Fix for Numba caching error in containers
     export NUMBA_CACHE_DIR="\${PWD}/numba_cache"
@@ -113,12 +114,17 @@ process BOLTZ2_REFOLD {
         echo ""
         echo "  Predicting \${base_name}..."
         
-        # Run Boltz-2
-        boltz predict "\${yaml_file}" \\
+        # Run Boltz-2 via wrapper to enable Tensor Core optimization
+        boltz_predict_wrapper.py --precision ${params.boltz2_torch_precision ?: 'medium'} -- "\${yaml_file}" \\
             --out_dir boltz2_results \\
+            --accelerator gpu \\
+            --devices 1 \\
+            --num_workers 12 \\
             --recycling_steps ${num_recycling} \\
             --diffusion_samples ${num_diffusion} \\
+            ${cache_opt} \\
             ${use_msa}
+
         
         echo "  ✓ Completed \${base_name}"
     done
@@ -205,6 +211,7 @@ Input:
   - Target sequence length: \${#TARGET_SEQ}
 
 Parameters:
+  - Cache directory: ${cache_dir.name != 'EMPTY_BOLTZ2_CACHE' ? 'boltz2_cache (staged)' : 'default (~/.boltz)'}
   - Recycling steps: ${num_recycling}
   - Diffusion samples: ${num_diffusion}
   - Use MSA: ${params.boltz2_use_msa}
