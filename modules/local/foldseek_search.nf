@@ -12,7 +12,7 @@ process FOLDSEEK_SEARCH {
 
     input:
     tuple val(meta), path(structure)
-    path database
+    path database_dir
 
     output:
     tuple val(meta), path("${meta.id}_foldseek_results.tsv"), emit: results
@@ -20,7 +20,6 @@ process FOLDSEEK_SEARCH {
     path "versions.yml", emit: versions
 
     script:
-    def db_path = database.name != 'NO_DATABASE' ? database : params.foldseek_database
     def evalue = params.foldseek_evalue ?: 0.001
     def max_seqs = params.foldseek_max_seqs ?: 100
     def sensitivity = params.foldseek_sensitivity ?: 9.5
@@ -28,15 +27,10 @@ process FOLDSEEK_SEARCH {
     def alignment_type = params.foldseek_alignment_type ?: 2
     def threads = task.cpus
 
-    // Validate database
-    if (!db_path) {
-        error "ERROR: No Foldseek database specified. Please set --foldseek_database parameter."
-    }
-
     """
     /usr/local/bin/foldseek_avx2 easy-search \\
         ${structure} \\
-        ${db_path}/afdb \\
+        ${database_dir}/afdb \\
         ${meta.id}_foldseek_results.tsv \\
         tmp_foldseek \\
         -e ${evalue} \\

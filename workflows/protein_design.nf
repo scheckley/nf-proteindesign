@@ -292,13 +292,14 @@ workflow PROTEIN_DESIGN {
     // Search for structural homologs of both Boltzgen and Protenix structures
     // in the AlphaFold database (or other specified database)
     if (params.run_foldseek) {
-        // Prepare database channel
-        if (params.foldseek_database) {
-            ch_foldseek_database = Channel.fromPath(params.foldseek_database, checkIfExists: true).first()
-        } else {
-            log.warn "⚠️  Foldseek is enabled but no database specified. Please set --foldseek_database parameter."
-            ch_foldseek_database = Channel.value(file('NO_DATABASE'))
+        // Validate and prepare database channel
+        if (!params.foldseek_database) {
+            error "ERROR: Foldseek is enabled but no database specified. Please set --foldseek_database parameter."
         }
+        
+        // Create channel from database directory path
+        ch_foldseek_database = Channel.fromPath(params.foldseek_database, type: 'dir', checkIfExists: true).first()
+
         
         // ====================================================================
         // Process Boltz-2 refolded structures
