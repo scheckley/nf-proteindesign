@@ -115,7 +115,7 @@ workflow PROTEIN_DESIGN {
         if (params.run_boltz2_refold) {
             // Get target sequence FASTA from samplesheet
             ch_target_fasta = ch_input
-                .map { meta, design_yaml, structure_files, target_msa, target_sequence, target_template ->
+                .map { meta, design_yaml, structure_files, target_msa, target_sequence, target_template, boltzgen_output_dir ->
                     [meta.id, target_sequence]
                 }
 
@@ -142,7 +142,7 @@ workflow PROTEIN_DESIGN {
             // Prepare Target MSA from Samplesheet
             // ================================================================
             ch_target_msa = ch_input
-                .map { meta, design_yaml, structure_files, target_msa, target_sequence, target_template ->
+                .map { meta, design_yaml, structure_files, target_msa, target_sequence, target_template, boltzgen_output_dir ->
                     def msa_file = target_msa ?: file('NO_MSA')
                     [meta.id, msa_file]
                 }
@@ -151,7 +151,7 @@ workflow PROTEIN_DESIGN {
             // Prepare Target Template from Samplesheet
             // ================================================================
             ch_target_template = ch_input
-                .map { meta, design_yaml, structure_files, target_msa, target_sequence, target_template ->
+                .map { meta, design_yaml, structure_files, target_msa, target_sequence, target_template, boltzgen_output_dir ->
                     def template_file = target_template ?: file('NO_TEMPLATE')
                     [meta.id, template_file]
                 }
