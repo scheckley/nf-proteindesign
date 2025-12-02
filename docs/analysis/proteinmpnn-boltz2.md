@@ -12,22 +12,45 @@ This workflow helps identify sequences that maintain the desired structure while
 ## Workflow Diagram
 
 ```mermaid
-flowchart LR
-    A[Boltzgen Designs] --> B[Convert to PDB]
-    B --> C[ProteinMPNN]
-    C --> D[Optimized Sequences]
-    D --> E[Extract Target]
-    E --> F[Boltz-2]
-    F --> G[Predicted Structures]
-    G --> H[Convert to NPZ]
+flowchart TB
+    A[Boltzgen Budget Designs<br/>CIF Files] --> B[Convert CIF to PDB<br/>Per Design]
     
-    H --> I[ipSAE Analysis]
-    G --> J[PRODIGY Analysis]
-    G --> K[Foldseek Analysis]
+    B --> C[ProteinMPNN Optimize<br/>Parallel per Budget Design<br/>🎮 GPU Process]
     
-    style C fill:#8E24AA,color:#fff
-    style F fill:#7B1FA2,color:#fff
+    C --> D[Optimized Sequences<br/>Multi-FASTA + Scores<br/>8 sequences/design]
+    
+    D --> E[Prepare Boltz-2 Input<br/>Split Multi-FASTA<br/>Process Target FASTA]
+    
+    E --> F[Boltz-2 Structure Prediction<br/>Parallel per Sequence<br/>🎮 GPU Process]
+    
+    F --> G[Predicted Structures<br/>CIF + Confidence JSON<br/>+ PAE NPZ]
+    
+    G --> H{Analysis<br/>Modules}
+    
+    H -->|Enabled| I[ipSAE Scoring<br/>🎮 GPU]
+    H -->|Enabled| J[PRODIGY Affinity<br/>💻 CPU]
+    H -->|Enabled| K[Foldseek Search<br/>🎮 GPU]
+    
+    I --> L[Combined Metrics]
+    J --> L
+    K --> L
+    
+    L --> M{Consolidation}
+    M -->|Enabled| N[Unified Report<br/>CSV + HTML]
+    
+    style C fill:#8E24AA,color:#fff,stroke:#8E24AA,stroke-width:3px
+    style F fill:#7B1FA2,color:#fff,stroke:#7B1FA2,stroke-width:3px
+    style N fill:#6A1B9A,color:#fff,stroke:#6A1B9A,stroke-width:3px
+    
+    classDef dataNode fill:#FFF9C4,stroke:#FBC02D,stroke-width:2px
+    class D,G,L dataNode
 ```
+
+!!! info "Workflow Details"
+    - **Parallelization**: Each budget design is processed independently by ProteinMPNN
+    - **Sequence Generation**: ProteinMPNN creates 8 sequences per structure by default (`--mpnn_num_seq_per_target`)
+    - **Boltz-2 Input**: Multi-FASTA is split into individual files, target FASTA is cleaned
+    - **Analysis Requirements**: All analysis modules require Boltz-2 outputs (not Boltzgen designs)
 
 ## When to Use This Workflow
 

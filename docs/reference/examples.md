@@ -364,7 +364,7 @@ nextflow run seqeralabs/nf-proteindesign -resume ...
 
 - [Parameter Reference](parameters.md)
 - [Quick Reference Guide](../getting-started/quick-reference.md)
-- [Analysis Modules](../analysis/proteinmpnn-protenix.md)
+- [Analysis Modules](../analysis/proteinmpnn-boltz2.md)
 - [Architecture Documentation](../architecture/design.md)
 
 ---
