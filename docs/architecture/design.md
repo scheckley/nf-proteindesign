@@ -8,45 +8,73 @@ The nf-proteindesign pipeline processes design YAML specifications through Boltz
 
 ```mermaid
 flowchart TD
-    A[Input Samplesheet] --> B[Parse Design YAMLs]
-    B --> C[Boltzgen Design]
+    A[Input Samplesheet<br/>with Design YAMLs] --> B{Check Boltzgen<br/>Output Dir}
     
-    C --> D[Budget Designs CIF + NPZ]
+    B -->|Null| C[Run Boltzgen Design<br/>GPU Process]
+    B -->|Provided| D[Stage Precomputed<br/>Boltzgen Results]
     
-    D --> E{ProteinMPNN?}
-    E -->|Yes| F[ProteinMPNN Optimize]
-    F --> G{Boltz-2 Refold?}
-    G -->|Yes| H[Boltz-2 Predict]
-    H --> I[Convert JSON to NPZ]
+    C --> E[Budget Designs<br/>CIF + NPZ Files]
+    D --> E
     
-    D --> J{IPSAE?}
-    J -->|Yes| K1[IPSAE: Boltzgen]
-    I -->|Yes| K2[IPSAE: Boltz-2]
+    E --> F{ProteinMPNN<br/>Enabled?}
+    F -->|No| Z1[Output Boltzgen<br/>Designs Only]
     
-    D --> L{PRODIGY?}
-    L -->|Yes| M1[PRODIGY: Boltzgen]
-    H -->|Yes| M2[PRODIGY: Boltz-2]
+    F -->|Yes| G[Convert CIF to PDB<br/>Per Design]
+    G --> H[ProteinMPNN Optimize<br/>Parallel per Budget Design<br/>GPU Process]
     
-    D --> N{Foldseek?}
-    N -->|Yes| O1[Foldseek: Boltzgen]
-    H -->|Yes| O2[Foldseek: Boltz-2]
+    H --> I[Optimized Sequences<br/>FASTA + Scores]
     
-    K1 --> P{Consolidate?}
-    K2 --> P
-    M1 --> P
-    M2 --> P
-    O1 --> P
-    O2 --> P
-    P -->|Yes| Q[Unified Report]
+    I --> J{Boltz-2 Refold<br/>Enabled?}
+    J -->|No| Z2[Output MPNN<br/>Sequences Only]
     
-    Q --> R[Final Output]
-    D --> R
+    J -->|Yes| K[Prepare Boltz-2 Input<br/>Split MPNN FASTA<br/>Process Target FASTA]
     
-    style C fill:#9C27B0,color:#fff
-    style F fill:#8E24AA,color:#fff
-    style H fill:#7B1FA2,color:#fff
-    style Q fill:#6A1B9A,color:#fff
+    K --> L[Boltz-2 Structure Prediction<br/>Parallel per Sequence<br/>GPU Process]
+    
+    L --> M[Boltz-2 Outputs<br/>CIF + Confidence JSON<br/>+ PAE NPZ]
+    
+    M --> N{Analysis<br/>Modules<br/>Enabled?}
+    
+    N -->|IPSAE| O[IPSAE Calculate<br/>Interface Scoring<br/>GPU Process]
+    N -->|PRODIGY| P[PRODIGY Predict<br/>Binding Affinity<br/>CPU Process]
+    N -->|Foldseek| Q[Foldseek Search<br/>Structural Similarity<br/>GPU Process]
+    
+    O --> R[IPSAE Scores<br/>TXT + ByRes]
+    P --> S[PRODIGY Results<br/>TXT Files]
+    Q --> T[Foldseek Results<br/>TSV + Summary]
+    
+    R --> U{Consolidation<br/>Enabled?}
+    S --> U
+    T --> U
+    
+    U -->|Yes| V[Consolidate Metrics<br/>Combine All Results<br/>CPU Process]
+    
+    V --> W[Unified Report<br/>CSV + HTML + MD]
+    
+    W --> X[Final Output]
+    M --> X
+    Z1 --> X
+    Z2 --> X
+    
+    style C fill:#9C27B0,color:#fff,stroke:#9C27B0,stroke-width:3px
+    style H fill:#8E24AA,color:#fff,stroke:#8E24AA,stroke-width:3px
+    style L fill:#7B1FA2,color:#fff,stroke:#7B1FA2,stroke-width:3px
+    style V fill:#6A1B9A,color:#fff,stroke:#6A1B9A,stroke-width:3px
+    
+    classDef gpuProcess fill:#E1BEE7,stroke:#9C27B0,stroke-width:2px
+    classDef cpuProcess fill:#F3E5F5,stroke:#9C27B0,stroke-width:1px
+    classDef dataNode fill:#FFF9C4,stroke:#FBC02D,stroke-width:2px
+    
+    class C,H,L,O,Q gpuProcess
+    class G,K,P,V cpuProcess
+    class E,I,M,R,S,T,W dataNode
 ```
+
+!!! warning "Key Architecture Notes"
+    - **Analysis modules** (IPSAE, PRODIGY, Foldseek) **only process Boltz-2 structures**
+    - Both `--run_proteinmpnn` and `--run_boltz2_refold` must be enabled for analysis
+    - Boltzgen budget designs are NOT analyzed directly - only used for ProteinMPNN input
+    - Precomputed Boltzgen results can be reused via `boltzgen_output_dir` in samplesheet
 
 ## :material-puzzle: Key Components
 
@@ -129,18 +157,22 @@ workflow {
 
 ### Core Processes
 
-| Process | Purpose | Label |
-|---------|---------|-------|
-| `BOLTZGEN_RUN` | Design proteins with Boltzgen | `gpu` |
-| `CONVERT_CIF_TO_PDB` | Convert CIF to PDB format | `cpu` |
-| `PROTEINMPNN_OPTIMIZE` | ProteinMPNN sequence optimization | `gpu` |
-| `EXTRACT_TARGET_SEQUENCES` | Extract sequences from structures | `cpu` |
-| `PROTENIX_REFOLD` | Boltz-2 structure prediction | `gpu` |
-| `CONVERT_PROTENIX_TO_NPZ` | Convert confidence JSON to NPZ | `cpu` |
-| `IPSAE_CALCULATE` | ipSAE interface scoring | `gpu` |
-| `PRODIGY_PREDICT` | PRODIGY binding affinity prediction | `cpu` |
-| `FOLDSEEK_SEARCH` | Foldseek structural search | `gpu` |
-| `CONSOLIDATE_METRICS` | Generate consolidated report | `cpu` |
+| Process | Purpose | Label | Output |
+|---------|---------|-------|--------|
+| `BOLTZGEN_RUN` | Design proteins with Boltzgen diffusion | `gpu` | CIF + NPZ (budget designs) |
+| `CONVERT_CIF_TO_PDB` | Convert CIF structures to PDB format | `cpu` | PDB files |
+| `PROTEINMPNN_OPTIMIZE` | Sequence optimization for designs | `gpu` | FASTA sequences + scores |
+| `PREPARE_BOLTZ2_SEQUENCES` | Split MPNN FASTA + process target | `cpu` | Individual FASTA files |
+| `BOLTZ2_REFOLD` | Structure prediction for MPNN sequences | `gpu` | CIF + JSON + NPZ |
+| `IPSAE_CALCULATE` | Interface quality scoring (Boltz-2 only) | `gpu` | TXT scores + byres |
+| `PRODIGY_PREDICT` | Binding affinity prediction (Boltz-2 only) | `cpu` | TXT results |
+| `FOLDSEEK_SEARCH` | Structural similarity search (Boltz-2 only) | `gpu` | TSV + summary |
+| `CONSOLIDATE_METRICS` | Unified metrics report generation | `cpu` | CSV + HTML + MD |
+
+!!! note "Process Dependencies"
+    - **BOLTZ2_REFOLD** requires **PROTEINMPNN_OPTIMIZE** output
+    - **Analysis processes** (IPSAE, PRODIGY, Foldseek) require **BOLTZ2_REFOLD** output
+    - **CONSOLIDATE_METRICS** requires at least one analysis process to be enabled
 
 ### Resource Labels
 
@@ -162,22 +194,32 @@ process {
 ## :material-file-tree: Module Structure
 
 ```
-main.nf                              # Main entry point
+main.nf                              # Main entry point with input parsing
 workflows/
 └── protein_design.nf                # Main workflow orchestration
 
 modules/local/
-├── boltzgen_run.nf                  # Boltzgen design generation
+├── boltzgen_run.nf                  # Boltzgen design generation (GPU)
 ├── convert_cif_to_pdb.nf            # CIF to PDB conversion
-├── proteinmpnn_optimize.nf          # ProteinMPNN optimization
-├── extract_target_sequences.nf      # Extract target sequences
-├── boltz2_refold.nf               # Boltz-2 structure prediction
-├── convert_boltz2_to_npz.nf       # JSON to NPZ conversion
-├── ipsae_calculate.nf               # ipSAE interface scoring
-├── prodigy_predict.nf               # PRODIGY binding affinity
-├── foldseek_search.nf               # Foldseek structural search
-└── consolidate_metrics.nf           # Metrics consolidation
+├── proteinmpnn_optimize.nf          # ProteinMPNN sequence optimization (GPU)
+├── prepare_boltz2_sequences.nf      # Split MPNN FASTA + process target
+├── boltz2_refold.nf                 # Boltz-2 structure prediction (GPU)
+├── ipsae_calculate.nf               # ipSAE interface scoring (GPU, Boltz-2 only)
+├── prodigy_predict.nf               # PRODIGY binding affinity (CPU, Boltz-2 only)
+├── foldseek_search.nf               # Foldseek structural search (GPU, Boltz-2 only)
+└── consolidate_metrics.nf           # Metrics consolidation (CPU)
+
+assets/
+├── schema_input_design.json         # Samplesheet validation schema
+├── ipsae.py                         # ipSAE calculation script
+├── parse_prodigy_output.py          # PRODIGY parser script
+├── consolidate_design_metrics.py    # Consolidation script
+├── NO_MSA                           # Placeholder for missing MSA
+└── NO_TEMPLATE                      # Placeholder for missing template
 ```
+
+!!! info "Asset Files"
+    Python helper scripts in `assets/` are staged into process working directories at runtime. Placeholder files enable Kubernetes/cloud execution when optional inputs are not provided.
 
 ## :material-cog: Configuration
 

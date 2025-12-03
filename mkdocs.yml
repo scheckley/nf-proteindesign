@@ -108,6 +108,9 @@ plugins:
       separator: '[\s\-,:!=\[\]()"/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
   - mermaid2
 
+hooks:
+  - docs/hooks/update_dynamic_content.py
+
 nav:
   - Home:
     - Overview: index.md

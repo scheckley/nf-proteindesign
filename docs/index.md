@@ -4,8 +4,10 @@
     This pipeline was developed by Seqera as a proof of principle using Seqera AI. It demonstrates the capabilities of AI-assisted bioinformatics pipeline development but should be thoroughly validated before use in production environments.
 
 <div style="text-align: center; margin: 2rem 0;">
+  <img src="https://img.shields.io/badge/version-1.0.0-9C27B0.svg" alt="Version">
   <img src="https://img.shields.io/badge/nextflow%20DSL2-%E2%89%A523.04.0-23aa62.svg" alt="Nextflow">
   <img src="https://img.shields.io/badge/run%20with-docker-0db7ed?labelColor=000000&logo=docker" alt="Docker">
+  <img src="https://img.shields.io/badge/GPU-required-FF6F00.svg?logo=nvidia" alt="GPU Required">
 </div>
 
 ## :material-test-tube: Overview
@@ -67,35 +69,50 @@
 ## :material-pipeline: Pipeline Workflow
 
 ```mermaid
-graph LR
-    A[Samplesheet] --> B[Boltzgen Design]
-    B --> C[Budget Designs]
+graph TB
+    A[Samplesheet<br/>Design YAMLs] --> B{Boltzgen<br/>Precomputed?}
+    B -->|No| C[Run Boltzgen Design]
+    B -->|Yes| D[Use Precomputed]
+    C --> E[Budget Designs<br/>CIF + NPZ]
+    D --> E
     
-    C --> D{ProteinMPNN?}
-    D -->|Yes| E[Sequence Optimization]
-    E --> F{Boltz-2?}
-    F -->|Yes| G[Structure Refold]
+    E --> F{ProteinMPNN<br/>Enabled?}
+    F -->|No| Z[Boltzgen Outputs Only]
+    F -->|Yes| G[Sequence Optimization<br/>Parallel per Design]
     
-    C --> H[Analysis Modules]
-    G --> H
+    G --> H{Boltz-2<br/>Enabled?}
+    H -->|No| Y[MPNN Sequences Only]
+    H -->|Yes| I[Prepare Sequences<br/>Split + Target]
     
-    H --> I[ipSAE Scoring]
-    H --> J[PRODIGY Affinity]
-    H --> K[Foldseek Search]
+    I --> J[Boltz-2 Structure<br/>Prediction]
+    J --> K[Boltz-2 Structures<br/>CIF + NPZ]
     
-    I --> L{Consolidate?}
-    J --> L
-    K --> L
-    L -->|Yes| M[Unified Report]
+    K --> L{Analysis<br/>Modules?}
+    L -->|IPSAE| M[Interface Scoring]
+    L -->|PRODIGY| N[Binding Affinity]
+    L -->|Foldseek| O[Structural Search]
     
-    M --> N[Final Results]
-    C --> N
+    M --> P{Consolidate?}
+    N --> P
+    O --> P
+    P -->|Yes| Q[Unified CSV + HTML<br/>Report]
     
-    style B fill:#9C27B0,stroke:#9C27B0,color:#fff
-    style E fill:#8E24AA,stroke:#8E24AA,color:#fff
-    style G fill:#7B1FA2,stroke:#7B1FA2,color:#fff
-    style M fill:#6A1B9A,stroke:#6A1B9A,color:#fff
+    Q --> R[Final Results]
+    K --> R
+    Z --> R
+    Y --> R
+    
+    style C fill:#9C27B0,stroke:#9C27B0,color:#fff
+    style G fill:#8E24AA,stroke:#8E24AA,color:#fff
+    style J fill:#7B1FA2,stroke:#7B1FA2,color:#fff
+    style Q fill:#6A1B9A,stroke:#6A1B9A,color:#fff
+    
+    classDef note fill:#FFF3E0,stroke:#FF9800,color:#000
+    class L note
 ```
+
+!!! info "Analysis Requirements"
+    **IPSAE, PRODIGY, and Foldseek** require **both** `--run_proteinmpnn` and `--run_boltz2_refold` to be enabled. These modules analyze only the Boltz-2 refolded structures, not the original Boltzgen designs.
 
 ## :material-rocket-launch: Quick Start
 

@@ -273,7 +273,7 @@ grep "Succeeded" results/pipeline_info/execution_trace.txt | wc -l
 - [Basic Usage](usage.md)
 - [Parameter Reference](../reference/parameters.md)
 - [Example Workflows](../reference/examples.md)
-- [Analysis Modules](../analysis/proteinmpnn-protenix.md)
+- [Analysis Modules](../analysis/proteinmpnn-boltz2.md)
 - [GitHub Repository](https://github.com/seqeralabs/nf-proteindesign)
 
 ---
